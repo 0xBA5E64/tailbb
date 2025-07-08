@@ -1,0 +1,13 @@
+{{#* inline "inside"}}
+<form method="post" action="/posts/new">
+    <input type="text" name="title", placeholder="Title">
+    <select name="category">
+        {{#each categories}}
+        <option value="{{id}}">{{name}}</option>
+        {{/each}}
+    </select><br>
+    <textarea name="body" placeholder="Contents"></textarea>
+    <input type="submit" value="Submit">
+</form>
+{{/inline}}
+{{> base}}
