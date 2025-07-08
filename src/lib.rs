@@ -1,11 +1,10 @@
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use handlebars::{DirectorySourceOptions, Handlebars};
-use serde::{Serialize, Deserialize};
-use uuid::Uuid;
 use axum::extract::State;
-use std::sync::Arc;
 use axum_extra::extract::CookieJar;
-
+use handlebars::{DirectorySourceOptions, Handlebars};
+use serde::{Deserialize, Serialize};
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use std::sync::Arc;
+use uuid::Uuid;
 
 #[allow(dead_code)]
 pub struct AppState<'a> {
@@ -128,10 +127,14 @@ pub async fn get_user_session(
     .await
     .unwrap();
 
-    let user = sqlx::query_as!(User,
+    let user = sqlx::query_as!(
+        User,
         "SELECT * FROM Users WHERE id = $1 LIMIT 1",
         session.user_id
-    ).fetch_one(&app_state.db_pool).await.unwrap();
+    )
+    .fetch_one(&app_state.db_pool)
+    .await
+    .unwrap();
 
     Some(user)
 }

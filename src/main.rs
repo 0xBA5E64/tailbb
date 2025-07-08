@@ -27,10 +27,7 @@ async fn main() {
         .await
         .unwrap();
 
-
-
     let app = Router::new()
-
         .merge(routes::get_web_router())
         // STATIC CONTENT
         .nest_service("/static", ServeDir::new("./static"))

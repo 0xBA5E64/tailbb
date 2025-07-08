@@ -12,7 +12,7 @@ use axum::Form;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
 
-use tailbb::{get_user_from_token, get_user_session, AppState, Category, Post};
+use tailbb::{AppState, Category, Post, get_user_from_token, get_user_session};
 
 pub async fn view_hw(
     app_state: State<Arc<AppState<'_>>>,
@@ -80,10 +80,14 @@ pub async fn view_post(
     cookie_jar: CookieJar,
     Path(post_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let post = sqlx::query_as!(Post, "SELECT *, uuid_extract_timestamp(id) as \"created_on!\" FROM Posts WHERE id = $1;", post_id)
-        .fetch_one(&app_state.db_pool)
-        .await
-        .expect("Failed to fetch post");
+    let post = sqlx::query_as!(
+        Post,
+        "SELECT *, uuid_extract_timestamp(id) as \"created_on!\" FROM Posts WHERE id = $1;",
+        post_id
+    )
+    .fetch_one(&app_state.db_pool)
+    .await
+    .expect("Failed to fetch post");
 
     Response::builder()
         .status(StatusCode::OK)
@@ -186,18 +190,26 @@ pub async fn new_post(
 
 pub async fn signup_view(
     app_state: State<Arc<AppState<'_>>>,
-    cookie_jar: CookieJar
+    cookie_jar: CookieJar,
 ) -> impl IntoResponse {
-
-    Response::builder().status(StatusCode::OK)
-        .body(app_state.templates.render("signup", &json!({"user": get_user_from_token(&app_state, &cookie_jar).await})).unwrap()).unwrap()
+    Response::builder()
+        .status(StatusCode::OK)
+        .body(
+            app_state
+                .templates
+                .render(
+                    "signup",
+                    &json!({"user": get_user_from_token(&app_state, &cookie_jar).await}),
+                )
+                .unwrap(),
+        )
+        .unwrap()
 }
 
 pub async fn signup_handler(
     app_state: State<Arc<AppState<'_>>>,
     form: Form<LoginFormData>,
 ) -> impl IntoResponse {
-
     if sqlx::query!("SELECT name FROM Users WHERE name = $1", &form.username)
         .fetch_optional(&app_state.db_pool)
         .await
@@ -209,7 +221,7 @@ pub async fn signup_handler(
             .body("User already exists".to_string())
             .unwrap();
     }
-    // TODO: Username validation, should be strictly limited regarding special characters 
+    // TODO: Username validation, should be strictly limited regarding special characters
 
     let a2 = Argon2::default();
     let pw_salt = SaltString::generate(OsRng);
@@ -223,9 +235,9 @@ pub async fn signup_handler(
         pw_salt.to_string(),
         pw_hash.to_string()
     )
-        .fetch_one(&app_state.db_pool)
-        .await
-        .unwrap();
+    .fetch_one(&app_state.db_pool)
+    .await
+    .unwrap();
 
     let session_token = sqlx::query!(
         "INSERT INTO UserTokens (user_id) VALUES ($1) RETURNING token;",
@@ -339,4 +351,3 @@ pub async fn logout_handler(
         .body("Logged out, redirecting...".to_string())
         .unwrap()
 }
-

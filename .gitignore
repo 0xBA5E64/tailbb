@@ -25,4 +25,5 @@ target
 # Extras
 
 .vscode
+.db-data
 .env
