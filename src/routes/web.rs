@@ -14,13 +14,25 @@ use axum::response::IntoResponse;
 
 use tailbb::{AppState, Category, Post, get_user_from_token, get_user_session};
 
+#[derive(Debug)]
+pub enum WebError {
+    DatabaseError,
+    RenderError,
+}
+
+impl IntoResponse for WebError {
+    fn into_response(self) -> axum::response::Response {
+        "Something Happened".into_response()
+    }
+}
+
 pub async fn view_hw(
     app_state: State<Arc<AppState<'_>>>,
     cookie_jar: CookieJar,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     get_user_session(&app_state, &cookie_jar).await;
 
-    Response::builder()
+    Ok(Response::builder()
         .status(StatusCode::OK)
         .body(
             app_state
@@ -32,19 +44,19 @@ pub async fn view_hw(
                         "user": get_user_from_token(&app_state, &cookie_jar).await
                     }),
                 )
-                .unwrap(),
+                .or(Err(WebError::RenderError))?,
         )
-        .unwrap()
+        .or(Err(WebError::RenderError)))
 }
 
 pub async fn view_posts(
     app_state: State<Arc<AppState<'_>>>,
     cookie_jar: CookieJar,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     let mut categories: Vec<Category> = sqlx::query!("SELECT id, name FROM Categorys;")
         .fetch_all(&app_state.db_pool)
         .await
-        .unwrap()
+        .or(Err(WebError::DatabaseError))?
         .iter()
         .map(|x| Category {
             id: x.id,
@@ -61,25 +73,23 @@ pub async fn view_posts(
                 )
                 .fetch_all(&app_state.db_pool)
                 .await
-                .unwrap())
+                .or(Err(WebError::DatabaseError))?)
     }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(
-            app_state
-                .templates
-                .render("post-list", &json!({"user": get_user_from_token(&app_state, &cookie_jar).await, "categories": categories}))
-                .unwrap(),
-        )
-        .unwrap()
+    Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(
+                app_state
+                    .templates
+                    .render("post-list", &json!({"user": get_user_from_token(&app_state, &cookie_jar).await, "categories": categories})).or(Err(WebError::RenderError))?,
+            ).or(Err(WebError::RenderError)))
 }
 
 pub async fn view_post(
     app_state: State<Arc<AppState<'_>>>,
     cookie_jar: CookieJar,
     Path(post_id): Path<Uuid>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     let post = sqlx::query_as!(
         Post,
         "SELECT *, uuid_extract_timestamp(id) as \"created_on!\" FROM Posts WHERE id = $1;",
@@ -89,28 +99,27 @@ pub async fn view_post(
     .await
     .expect("Failed to fetch post");
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(
-            app_state
-                .templates
-                .render("post-view", &json!({"user": get_user_from_token(&app_state, &cookie_jar).await,"post": post}))
-                .unwrap(),
-        )
-        .unwrap()
+    Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(
+                app_state
+                    .templates
+                    .render("post-view", &json!({"user": get_user_from_token(&app_state, &cookie_jar).await,"post": post}))
+                    .or(Err(WebError::RenderError))?,
+            ).or(Err(WebError::RenderError)))
 }
 
 pub async fn view_post_form(
     app_state: State<Arc<AppState<'_>>>,
     cookie_jar: CookieJar,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     let user = match get_user_from_token(&app_state, &cookie_jar).await {
         Some(u) => u,
         None => {
-            return Response::builder()
+            return Ok(Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .body("You must be logged in to post".to_string())
-                .unwrap();
+                .or(Err(WebError::RenderError)));
         }
     };
 
@@ -126,7 +135,7 @@ pub async fn view_post_form(
         })
         .collect();
 
-    Response::builder()
+    Ok(Response::builder()
         .status(StatusCode::OK)
         .body(
             app_state
@@ -135,9 +144,9 @@ pub async fn view_post_form(
                     "post-form",
                     &json!({"user": user, "categories": categories}),
                 )
-                .unwrap(),
+                .or(Err(WebError::RenderError))?,
         )
-        .unwrap()
+        .or(Err(WebError::RenderError)))
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -151,7 +160,7 @@ pub async fn new_post(
     app_state: State<Arc<AppState<'_>>>,
     cookie_jar: CookieJar,
     Form(form): Form<NewPostForm>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     let title = &form.title;
     let body = &form.body;
 
@@ -161,7 +170,7 @@ pub async fn new_post(
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .body("You must be logged in to post".to_string())
-                .unwrap();
+                .or(Err(WebError::RenderError));
         }
     };
 
@@ -180,18 +189,18 @@ pub async fn new_post(
             .status(StatusCode::SEE_OTHER)
             .header("Location", format!("/posts/{}", r.id))
             .body("".to_string())
-            .unwrap(),
+            .or(Err(WebError::RenderError)),
         Err(e) => Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body(format!("{e}"))
-            .unwrap(),
+            .or(Err(WebError::RenderError)),
     }
 }
 
 pub async fn signup_view(
     app_state: State<Arc<AppState<'_>>>,
     cookie_jar: CookieJar,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     Response::builder()
         .status(StatusCode::OK)
         .body(
@@ -201,15 +210,15 @@ pub async fn signup_view(
                     "signup",
                     &json!({"user": get_user_from_token(&app_state, &cookie_jar).await}),
                 )
-                .unwrap(),
+                .or(Err(WebError::RenderError))?,
         )
-        .unwrap()
+        .or(Err(WebError::RenderError))
 }
 
 pub async fn signup_handler(
     app_state: State<Arc<AppState<'_>>>,
     form: Form<LoginFormData>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     if sqlx::query!("SELECT name FROM Users WHERE name = $1", &form.username)
         .fetch_optional(&app_state.db_pool)
         .await
@@ -219,7 +228,7 @@ pub async fn signup_handler(
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body("User already exists".to_string())
-            .unwrap();
+            .or(Err(WebError::RenderError));
     }
     // TODO: Username validation, should be strictly limited regarding special characters
 
@@ -253,14 +262,16 @@ pub async fn signup_handler(
         .header("Location", "/")
         .header("Set-Cookie", format!("token={session_token}"))
         .body("Login Sucessful, redirecting...\n".to_string())
-        .unwrap()
+        .or(Err(WebError::RenderError))
 }
 
-pub async fn login_view(app_state: State<Arc<AppState<'_>>>) -> impl IntoResponse {
+pub async fn login_view(
+    app_state: State<Arc<AppState<'_>>>,
+) -> Result<impl IntoResponse, WebError> {
     Response::builder()
         .status(StatusCode::OK)
         .body(app_state.templates.render("login", &json!({})).unwrap())
-        .unwrap()
+        .or(Err(WebError::RenderError))
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -273,7 +284,7 @@ pub struct LoginFormData {
 pub async fn login_handler(
     app_state: State<Arc<AppState<'_>>>,
     form: Form<LoginFormData>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     let db_user = match sqlx::query!("SELECT * FROM Users WHERE name = $1;", &form.username,)
         .fetch_optional(&app_state.db_pool)
         .await
@@ -284,7 +295,7 @@ pub async fn login_handler(
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .body("User not found".to_string())
-                .unwrap();
+                .or(Err(WebError::RenderError));
         } // Todo: Maybe don't announce this publicly
     };
 
@@ -303,8 +314,8 @@ pub async fn login_handler(
     if db_hash != rq_hash {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
-            .body("Invalid Password".to_string())
-            .unwrap(); // Todo: Maybe don't announce this publicly
+            .body("Invalid Password".to_string()) // Todo: Maybe don't announce this publicly
+            .or(Err(WebError::RenderError));
     }
 
     let session_token = sqlx::query!(
@@ -321,13 +332,13 @@ pub async fn login_handler(
         .header("Location", "/")
         .header("Set-Cookie", format!("token={session_token}"))
         .body("Login Sucessful, redirecting...\n".to_string())
-        .unwrap()
+        .or(Err(WebError::RenderError))
 }
 
 pub async fn logout_handler(
     app_state: State<Arc<AppState<'_>>>,
     cookie_jar: CookieJar,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, WebError> {
     let token: Uuid = match cookie_jar.get("token") {
         Some(c) => Uuid::from_str(c.value_trimmed()).unwrap(),
         None => {
@@ -335,7 +346,7 @@ pub async fn logout_handler(
                 .status(StatusCode::TEMPORARY_REDIRECT)
                 .header("Location", "/")
                 .body("".to_string())
-                .unwrap();
+                .or(Err(WebError::RenderError));
         }
     };
 
@@ -349,5 +360,5 @@ pub async fn logout_handler(
         .header("Set-Cookie", "token=")
         .header("Location", "/")
         .body("Logged out, redirecting...".to_string())
-        .unwrap()
+        .or(Err(WebError::RenderError))
 }
