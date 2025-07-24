@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE UserTokens SET last_active = now() WHERE token = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5e72a5adb10ad1da801a0c92427ae089efcb5e50455fb5c94c8ed8294f9a597a"
+}
