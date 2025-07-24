@@ -6,7 +6,7 @@ use tailbb::AppState;
 pub mod web;
 
 // "Legacy"-style server-side rendered web frontend.
-pub fn get_web_router() -> Router<Arc<AppState<'static>>> {
+pub fn get_web_router(app_state: &Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
         // Front Page
         .route("/", get(web::view_hw))
@@ -18,4 +18,8 @@ pub fn get_web_router() -> Router<Arc<AppState<'static>>> {
         .route("/posts", get(web::view_posts))
         .route("/posts/new", get(web::view_post_form).post(web::new_post))
         .route("/posts/{post_id}", get(web::view_post))
+        .layer(axum::middleware::from_fn_with_state(
+            app_state.clone(),
+            web::auth_middleware,
+        ))
 }

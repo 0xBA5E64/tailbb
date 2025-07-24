@@ -1,6 +1,9 @@
 use argon2::PasswordHash;
 use argon2::password_hash::rand_core::OsRng;
+use axum::body::Body;
+use axum::extract::Extension;
 use axum::http::{Response, StatusCode};
+use axum::middleware::Next;
 use axum_extra::extract::CookieJar;
 use serde_json::json;
 use std::str::FromStr;
@@ -9,10 +12,40 @@ use uuid::Uuid;
 
 use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
 use axum::Form;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Request, State};
 use axum::response::IntoResponse;
 
-use tailbb::{AppState, Category, Post, get_user_from_token, get_user_session};
+use tailbb::{AppState, Category, Post, UserState, get_user_session};
+
+#[axum::debug_middleware]
+pub async fn auth_middleware(
+    app_state: State<Arc<AppState>>,
+    cookie_jar: CookieJar,
+    mut req: Request,
+    nxt: Next,
+) -> impl IntoResponse {
+    let user_state = get_user_session(&app_state, &cookie_jar).await;
+    req.extensions_mut().insert(user_state.clone());
+
+    let mut response = nxt.run(req).await;
+
+    match user_state {
+        UserState::ValidSession(_) => response,
+        UserState::ExpiredToken => Response::builder()
+            .status(StatusCode::TEMPORARY_REDIRECT)
+            .header("Location", "/login")
+            .header("Set-Cookie", "token=")
+            .body(Body::from("Session expired, please log in again."))
+            .unwrap(),
+        UserState::InvalidToken => {
+            response
+                .headers_mut()
+                .insert("Set-Cookie", "token=".parse().unwrap());
+            response
+        }
+        UserState::NoToken => response,
+    }
+}
 
 #[derive(Debug)]
 pub enum WebError {
@@ -26,11 +59,12 @@ impl IntoResponse for WebError {
     }
 }
 
+#[axum::debug_handler]
 pub async fn view_hw(
-    app_state: State<Arc<AppState<'_>>>,
-    cookie_jar: CookieJar,
+    app_state: State<Arc<AppState>>,
+    Extension(user_state): Extension<UserState>,
 ) -> Result<impl IntoResponse, WebError> {
-    get_user_session(&app_state, &cookie_jar).await;
+    dbg!(serde_json::to_string(&user_state).unwrap());
 
     Ok(Response::builder()
         .status(StatusCode::OK)
@@ -41,7 +75,7 @@ pub async fn view_hw(
                     "basic",
                     &json!({
                         "content": "Hello World! This is the page",
-                        "user": get_user_from_token(&app_state, &cookie_jar).await
+                        "user": user_state
                     }),
                 )
                 .or(Err(WebError::RenderError))?,
@@ -49,9 +83,10 @@ pub async fn view_hw(
         .or(Err(WebError::RenderError)))
 }
 
+#[axum::debug_handler]
 pub async fn view_posts(
-    app_state: State<Arc<AppState<'_>>>,
-    cookie_jar: CookieJar,
+    app_state: State<Arc<AppState>>,
+    Extension(user_state): Extension<UserState>,
 ) -> Result<impl IntoResponse, WebError> {
     let mut categories: Vec<Category> = sqlx::query!("SELECT id, name FROM Categorys;")
         .fetch_all(&app_state.db_pool)
@@ -77,18 +112,24 @@ pub async fn view_posts(
     }
 
     Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(
-                app_state
-                    .templates
-                    .render("post-list", &json!({"user": get_user_from_token(&app_state, &cookie_jar).await, "categories": categories})).or(Err(WebError::RenderError))?,
-            ).or(Err(WebError::RenderError)))
+        .status(StatusCode::OK)
+        .body(
+            app_state
+                .templates
+                .render(
+                    "post-list",
+                    &json!({"user": user_state, "categories": categories}),
+                )
+                .or(Err(WebError::RenderError))?,
+        )
+        .or(Err(WebError::RenderError)))
 }
 
+#[axum::debug_handler]
 pub async fn view_post(
-    app_state: State<Arc<AppState<'_>>>,
-    cookie_jar: CookieJar,
+    app_state: State<Arc<AppState>>,
     Path(post_id): Path<Uuid>,
+    Extension(user_state): Extension<UserState>,
 ) -> Result<impl IntoResponse, WebError> {
     let post = sqlx::query_as!(
         Post,
@@ -100,22 +141,24 @@ pub async fn view_post(
     .expect("Failed to fetch post");
 
     Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(
-                app_state
-                    .templates
-                    .render("post-view", &json!({"user": get_user_from_token(&app_state, &cookie_jar).await,"post": post}))
-                    .or(Err(WebError::RenderError))?,
-            ).or(Err(WebError::RenderError)))
+        .status(StatusCode::OK)
+        .body(
+            app_state
+                .templates
+                .render("post-view", &json!({"user": user_state,"post": post}))
+                .or(Err(WebError::RenderError))?,
+        )
+        .or(Err(WebError::RenderError)))
 }
 
+#[axum::debug_handler]
 pub async fn view_post_form(
-    app_state: State<Arc<AppState<'_>>>,
-    cookie_jar: CookieJar,
+    app_state: State<Arc<AppState>>,
+    Extension(user_state): Extension<UserState>,
 ) -> Result<impl IntoResponse, WebError> {
-    let user = match get_user_from_token(&app_state, &cookie_jar).await {
-        Some(u) => u,
-        None => {
+    match &user_state {
+        UserState::ValidSession(u) => u,
+        _ => {
             return Ok(Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .body("You must be logged in to post".to_string())
@@ -142,7 +185,7 @@ pub async fn view_post_form(
                 .templates
                 .render(
                     "post-form",
-                    &json!({"user": user, "categories": categories}),
+                    &json!({"user": user_state, "categories": categories}),
                 )
                 .or(Err(WebError::RenderError))?,
         )
@@ -156,17 +199,15 @@ pub struct NewPostForm {
     category: Uuid,
 }
 
+#[axum::debug_handler]
 pub async fn new_post(
-    app_state: State<Arc<AppState<'_>>>,
-    cookie_jar: CookieJar,
+    app_state: State<Arc<AppState>>,
+    Extension(user_state): Extension<UserState>,
     Form(form): Form<NewPostForm>,
 ) -> Result<impl IntoResponse, WebError> {
-    let title = &form.title;
-    let body = &form.body;
-
-    let user = match get_user_from_token(&app_state, &cookie_jar).await {
-        Some(u) => u,
-        None => {
+    let user = match &user_state {
+        UserState::ValidSession(user) => user,
+        _ => {
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .body("You must be logged in to post".to_string())
@@ -174,7 +215,7 @@ pub async fn new_post(
         }
     };
 
-    println!("New Post: {title}, {body}");
+    dbg!("New Post: {title}, {body}");
 
     let query = sqlx::query!(
         "INSERT INTO Posts (title, body, user_id, category_id) VALUES ($1, $2, $3, $4) RETURNING id;",
@@ -197,26 +238,25 @@ pub async fn new_post(
     }
 }
 
+#[axum::debug_handler]
 pub async fn signup_view(
-    app_state: State<Arc<AppState<'_>>>,
-    cookie_jar: CookieJar,
+    app_state: State<Arc<AppState>>,
+    Extension(user_state): Extension<UserState>,
 ) -> Result<impl IntoResponse, WebError> {
     Response::builder()
         .status(StatusCode::OK)
         .body(
             app_state
                 .templates
-                .render(
-                    "signup",
-                    &json!({"user": get_user_from_token(&app_state, &cookie_jar).await}),
-                )
+                .render("signup", &json!({"user": user_state}))
                 .or(Err(WebError::RenderError))?,
         )
         .or(Err(WebError::RenderError))
 }
 
+#[axum::debug_handler]
 pub async fn signup_handler(
-    app_state: State<Arc<AppState<'_>>>,
+    app_state: State<Arc<AppState>>,
     form: Form<LoginFormData>,
 ) -> Result<impl IntoResponse, WebError> {
     if sqlx::query!("SELECT name FROM Users WHERE name = $1", &form.username)
@@ -265,9 +305,8 @@ pub async fn signup_handler(
         .or(Err(WebError::RenderError))
 }
 
-pub async fn login_view(
-    app_state: State<Arc<AppState<'_>>>,
-) -> Result<impl IntoResponse, WebError> {
+#[axum::debug_handler]
+pub async fn login_view(app_state: State<Arc<AppState>>) -> Result<impl IntoResponse, WebError> {
     Response::builder()
         .status(StatusCode::OK)
         .body(app_state.templates.render("login", &json!({})).unwrap())
@@ -281,8 +320,9 @@ pub struct LoginFormData {
     invite: Option<String>,
 }
 
+#[axum::debug_handler]
 pub async fn login_handler(
-    app_state: State<Arc<AppState<'_>>>,
+    app_state: State<Arc<AppState>>,
     form: Form<LoginFormData>,
 ) -> Result<impl IntoResponse, WebError> {
     let db_user = match sqlx::query!("SELECT * FROM Users WHERE name = $1;", &form.username,)
@@ -335,8 +375,9 @@ pub async fn login_handler(
         .or(Err(WebError::RenderError))
 }
 
+#[axum::debug_handler]
 pub async fn logout_handler(
-    app_state: State<Arc<AppState<'_>>>,
+    app_state: State<Arc<AppState>>,
     cookie_jar: CookieJar,
 ) -> Result<impl IntoResponse, WebError> {
     let token: Uuid = match cookie_jar.get("token") {

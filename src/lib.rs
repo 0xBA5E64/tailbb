@@ -3,19 +3,20 @@ use axum_extra::extract::CookieJar;
 use handlebars::{DirectorySourceOptions, Handlebars};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 use uuid::Uuid;
 
 #[allow(dead_code)]
-pub struct AppState<'a> {
+#[derive(Clone)]
+pub struct AppState {
     pub host: String,
     pub db_url: String,
     pub db_pool: PgPool,
-    pub templates: Handlebars<'a>,
+    pub templates: Handlebars<'static>,
     pub session_timeout: i64,
 }
 
-impl AppState<'_> {
+impl AppState {
     pub async fn new() -> Self {
         let host: String = std::env::var("HOST").expect("No HOST Specified");
 
@@ -50,7 +51,7 @@ impl AppState<'_> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct User {
     pub id: Uuid,
     pub name: String,
@@ -76,7 +77,7 @@ pub struct Category {
 }
 
 pub async fn get_user_from_token(
-    app_state: &State<Arc<AppState<'_>>>,
+    app_state: &State<Arc<AppState>>,
     cookie_jar: &CookieJar,
 ) -> Option<User> {
     match cookie_jar.get("token") {
@@ -90,14 +91,33 @@ pub async fn get_user_from_token(
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum UserState {
+    ValidSession(User),
+    ExpiredToken,
+    InvalidToken,
+    NoToken,
+}
+
 // TODO: This should be done as a middleware
 pub async fn get_user_session(
-    app_state: &State<Arc<AppState<'_>>>,
+    app_state: &State<Arc<AppState>>,
     cookie_jar: &CookieJar,
-) -> Option<User> {
-    let token: Option<Uuid> = match cookie_jar.get("token") {
-        Some(cookie) => Some(cookie.value_trimmed().parse::<Uuid>().unwrap_or_default()),
-        None => return None,
+) -> UserState {
+    let token: Uuid = match cookie_jar
+        .get("token")
+        .and_then(|v| {
+            let trimmed = v.value_trimmed();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        })
+        .and_then(|value| Uuid::from_str(value).ok())
+    {
+        Some(token) => token,
+        None => return UserState::NoToken,
     };
 
     let session = match sqlx::query!("SELECT * FROM UserTokens WHERE token = $1 LIMIT 1", token)
@@ -106,7 +126,7 @@ pub async fn get_user_session(
         .unwrap()
     {
         Some(s) => s,
-        None => return None,
+        None => return UserState::InvalidToken,
     };
 
     let session_age: time::Duration = time::OffsetDateTime::now_utc() - session.last_active;
@@ -117,6 +137,7 @@ pub async fn get_user_session(
             .execute(&app_state.db_pool)
             .await
             .unwrap();
+        return UserState::ExpiredToken;
     }
 
     sqlx::query!(
@@ -136,5 +157,5 @@ pub async fn get_user_session(
     .await
     .unwrap();
 
-    Some(user)
+    UserState::ValidSession(user)
 }

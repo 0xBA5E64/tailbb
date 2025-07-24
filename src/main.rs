@@ -16,7 +16,7 @@ mod routes;
 async fn main() {
     dotenv().expect(".env not found");
 
-    let app_state: AppState = AppState::new().await;
+    let app_state: Arc<AppState> = Arc::new(AppState::new().await);
 
     sqlx::migrate!()
         .run(&app_state.db_pool)
@@ -28,11 +28,11 @@ async fn main() {
         .unwrap();
 
     let app = Router::new()
-        .merge(routes::get_web_router())
+        .merge(routes::get_web_router(&app_state))
         // STATIC CONTENT
         .nest_service("/static", ServeDir::new("./static"))
         // STATE
-        .with_state(Arc::new(app_state));
+        .with_state(app_state);
 
     axum::serve(listener, app).await.unwrap();
 }
