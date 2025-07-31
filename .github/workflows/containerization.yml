@@ -2,16 +2,18 @@ name: Build container image
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 jobs:
   build-container-image:
     name: Build container image
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
 
     steps:
-      - name: 'Login to GHCR'
+      - name: Login to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -24,5 +26,5 @@ jobs:
       - name: Build container image
         run: docker build . -t ghcr.io/0xba5e64/tailbb:${{ github.sha }}
       
-      - name: Push container to ghcr
+      - name: Push container to GHCR
         run: docker push ghcr.io/0xba5e64/tailbb:${{ github.sha }}
