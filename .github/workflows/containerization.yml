@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Build container image
-        run: docker build . -t ghcr.io/0xBA5E64/tailbb:${{ github.sha }}
+        run: docker build . -t ghcr.io/0xba5e64/tailbb:${{ github.sha }}
       
       - name: Push container to ghcr
-        run: docker push ghcr.io/0xBA5E64/tailbb:${{ github.sha }}
+        run: docker push ghcr.io/0xba5e64/tailbb:${{ github.sha }}
