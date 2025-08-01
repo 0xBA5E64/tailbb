@@ -55,7 +55,16 @@ pub enum WebError {
 
 impl IntoResponse for WebError {
     fn into_response(self) -> axum::response::Response {
-        "Something Happened".into_response()
+        match self {
+            WebError::DatabaseError => Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from("Database Error"))
+                .unwrap(),
+            WebError::RenderError => Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from("Error rendering page"))
+                .unwrap(),
+        }
     }
 }
 
