@@ -76,21 +76,6 @@ pub struct Category {
     pub posts: Option<Vec<Post>>,
 }
 
-pub async fn get_user_from_token(
-    app_state: &State<Arc<AppState>>,
-    cookie_jar: &CookieJar,
-) -> Option<User> {
-    match cookie_jar.get("token") {
-        Some(cookie) => {
-            sqlx::query_as!(User,
-                "SELECT * FROM Users WHERE id = (SELECT user_id FROM UserTokens WHERE token = $1 LIMIT 1) LIMIT 1",
-                cookie.value_trimmed().parse::<Uuid>().unwrap_or_default()
-                ).fetch_optional(&app_state.db_pool).await.unwrap()
-            }
-        None => None
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UserState {
     ValidSession(User),
@@ -99,7 +84,6 @@ pub enum UserState {
     NoToken,
 }
 
-// TODO: This should be done as a middleware
 pub async fn get_user_session(
     app_state: &State<Arc<AppState>>,
     cookie_jar: &CookieJar,
