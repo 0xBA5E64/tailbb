@@ -1,7 +1,7 @@
 use argon2::PasswordHash;
 use argon2::password_hash::rand_core::OsRng;
 use axum::body::Body;
-use axum::extract::Extension;
+use axum::extract::{Extension, Query};
 use axum::http::{Response, StatusCode};
 use axum::middleware::Next;
 use axum_extra::extract::CookieJar;
@@ -125,11 +125,17 @@ pub async fn view_posts(
         .or(Err(WebError::RenderError)))
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct PageOpts {
+    noheader: Option<bool>,
+}
+
 #[axum::debug_handler]
 pub async fn view_post(
     app_state: State<Arc<AppState>>,
     Path(post_id): Path<Uuid>,
     Extension(user_state): Extension<UserState>,
+    Query(page_opts): Query<PageOpts>,
 ) -> Result<impl IntoResponse, WebError> {
     let post = sqlx::query_as!(
         Post,
@@ -145,7 +151,10 @@ pub async fn view_post(
         .body(
             app_state
                 .templates
-                .render("post-view", &json!({"user": user_state,"post": post}))
+                .render(
+                    "post-view",
+                    &json!({"user": user_state,"post": post, "page_opts": page_opts}),
+                )
                 .or(Err(WebError::RenderError))?,
         )
         .or(Err(WebError::RenderError)))

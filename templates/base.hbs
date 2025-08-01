@@ -4,17 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TailBB</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>TailBB Template</h1>
-    <h2>[ <a href="/">Home</a> :: <a href="/posts">Posts</a> :: <a href="/posts/new">New Post</a> ]</h2>
-    {{#with user.ValidSession}}
-        <p>Logged in as: <b>{{name}}</b> (<a href="/logout">Log out</a>)</p>
-    {{else}}
-        <p>Not logged in (<a href="/login">Login</a>)</p>
-    {{/with}}
+    {{#unless page_opts.noheader }}
+    <div id="header">
+    <h1>TailBB</h1>
 
+    <div id="user">     
+    {{#with user.ValidSession}}
+        Logged in as: <b>{{name}}</b> (<a href="/logout">Log out</a>)
+    {{else}}
+        Not logged in (<a href="/login">Login</a>)
+    {{/with}}
+    </div>
+        <div id="navbar">
+            <a href="/">Home</a>
+            <a href="/posts">Posts</a>
+        </div>
+    </div>
+    {{/unless}}
+
+    <div id="content">
     {{> inside}}
+    </div>
 
 </body>
 </html>

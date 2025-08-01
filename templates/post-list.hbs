@@ -1,4 +1,5 @@
 {{#* inline "inside"}}
+<div id="view-flex">
 <ul class="category-list">
 {{#each categories}}
     <li class="category">
@@ -10,99 +11,15 @@
     </ul>
     </li>
 {{/each}}
+{{#if user.ValidSession}}
+<a id="new-post" href="/posts/new">New Post</a>
+{{/if}}
 </ul>
 
-<style>
-
-    
-.category-list {
-    display: block;
-    width: 250px;
-    height: 1000px;
-    padding: 2px;
-    
-    font-size: 12px;
-    font-family: sans-serif;
-    
-    border: solid #888 1px;
-}
-    
-.category-list p {
-    margin: 0px;
-    padding: 1px 5px;
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-}
-    
-.category-list * { user-select: none; }
-.category-list a { cursor: default; }
-
-
-.category .category-name::before {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    width: 8px;
-    height: 8px;
-    margin-right: 4px;
-    font-size: 10px;
-    font-family: monospace;
-    font-weight: bold;
-    color: #222;
-    background: #FFF;
-    border: solid #888 1px;
-    z-index: 2;
-}
-
-.category         .category-name::before { content: "-"; }
-.category.clicked .category-name::before { content: "+"; }
-
-
-p.selected {
-    color: white;
-    background: #3169c6;
-    padding: 0px 4px;
-    border: dotted #444 1px;
-    box-sizing: border-box;
-    background-clip: padding-box;
-}
-
-.selected * { color: white !important; }
-
-.category.clicked .post-list {
-    display: none;
-}
-
-.post-list {
-    padding-left: 16px;
-}
-
-.post {
-    position: relative;
-}
-
-.category-list li::marker { content: ""; }
-
-.post::before {
-    content: "";
-    position: absolute;
-    top: -.75em;
-    left: -.5em;
-    width: .75em;
-    height: 1.5em;
-    background: transparent;
-    border: dotted 2px #222;
-    border-width: 0px 0px 1px 1px;
-}
-
-.post a {
-    color: black;
-    text-decoration: none;
-}
-
-
-</style>
+<iframe id="viewer">
+Posts will be seen here
+</iframe>
+</div>
 <script>
 
 document.querySelectorAll(".category-list p").forEach((e) => {
@@ -122,7 +39,7 @@ document.querySelectorAll(".category-name").forEach((e) => {
 
 document.querySelectorAll("a").forEach((e) => {
     e.addEventListener("dblclick", () => {
-        window.location = e.href
+        document.querySelector("#viewer").src = e.href + "?noheader=true"
     } )
 })
 
