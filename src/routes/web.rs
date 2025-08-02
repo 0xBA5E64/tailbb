@@ -15,7 +15,7 @@ use axum::Form;
 use axum::extract::{Path, Request, State};
 use axum::response::IntoResponse;
 
-use tailbb::{AppState, Category, Post, UserState, get_user_session};
+use tailbb::{AppState, Category, Post, UserState, get_user_session, validate_username};
 
 #[axum::debug_middleware]
 pub async fn auth_middleware(
@@ -277,6 +277,7 @@ pub async fn signup_handler(
     app_state: State<Arc<AppState>>,
     form: Form<LoginFormData>,
 ) -> Result<impl IntoResponse, WebError> {
+    // Check if user already exists
     if sqlx::query!("SELECT name FROM Users WHERE name = $1", &form.username)
         .fetch_optional(&app_state.db_pool)
         .await
@@ -288,7 +289,23 @@ pub async fn signup_handler(
             .body("User already exists".to_string())
             .or(Err(WebError::RenderError));
     }
-    // TODO: Username validation, should be strictly limited regarding special characters
+
+    match validate_username(&form.username) {
+        Err(e) => {
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(format!("Error with username: {}", e.to_string()))
+                .or(Err(WebError::RenderError));
+        }
+        Ok(_) => (),
+    }
+
+    if form.password.trim().len() == 0 {
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body("Password cannot be empty".to_string())
+            .or(Err(WebError::RenderError));
+    }
 
     let a2 = Argon2::default();
     let pw_salt = SaltString::generate(OsRng);

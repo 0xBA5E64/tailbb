@@ -84,6 +84,53 @@ pub enum UserState {
     NoToken,
 }
 
+pub enum UsernameError {
+    WhitespacePadding,
+    InnerWhitespace,
+    SpecialCharacters,
+    Empty,
+}
+
+// TODO: This is very very wrong, but I don't know what the correct way of associating descriptions with errors is.
+// I'm guessing I should consider using the thiserror crate for this, but I'm trying out doing this vanilla first
+// to better understand how rust works. Clearly, I have much to learn still.
+impl ToString for UsernameError {
+    fn to_string(&self) -> String {
+        let str = match self {
+            UsernameError::WhitespacePadding => "Username cannot have whitespace padding",
+            UsernameError::InnerWhitespace => "Username cannot have whitespace in it",
+            UsernameError::SpecialCharacters => "Username cannot have special characters",
+            UsernameError::Empty => "Username cannot be empty",
+        };
+        str.to_string()
+    }
+}
+
+pub fn validate_username(username: &str) -> Result<(), UsernameError> {
+    // Verify that username isn't empty or padded
+    if username != username.trim() {
+        return Err(UsernameError::WhitespacePadding);
+    }
+
+    // Verify that username doesn't have any whitespace in it
+    if username.chars().any(|c: char| c.is_whitespace()) {
+        return Err(UsernameError::InnerWhitespace);
+    }
+
+    // Verify that username doesn't have any special characters
+    if username
+        .chars()
+        .all(|c: char| ((c.is_ascii_alphanumeric() == false) || (".-_".contains(c) == true)))
+    {
+        return Err(UsernameError::SpecialCharacters);
+    }
+
+    if username.trim().len() == 0 {
+        return Err(UsernameError::Empty);
+    }
+    Ok(())
+}
+
 pub async fn get_user_session(
     app_state: &State<Arc<AppState>>,
     cookie_jar: &CookieJar,
