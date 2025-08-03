@@ -4,7 +4,7 @@ use axum::body::Body;
 use axum::extract::{Extension, Query};
 use axum::http::{Response, StatusCode};
 use axum::middleware::Next;
-use axum_extra::extract::CookieJar;
+use axum_extra::extract::{CookieJar, cookie::Cookie};
 use serde_json::json;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -27,22 +27,20 @@ pub async fn auth_middleware(
     let user_state = get_user_session(&app_state, &cookie_jar).await;
     req.extensions_mut().insert(user_state.clone());
 
-    let mut response = nxt.run(req).await;
+    let response = nxt.run(req).await;
 
     match user_state {
         UserState::ValidSession(_) => response,
-        UserState::ExpiredToken => Response::builder()
-            .status(StatusCode::TEMPORARY_REDIRECT)
-            .header("Location", "/login")
-            .header("Set-Cookie", "token=")
-            .body(Body::from("Session expired, please log in again."))
-            .unwrap(),
-        UserState::InvalidToken => {
-            response
-                .headers_mut()
-                .insert("Set-Cookie", "token=".parse().unwrap());
-            response
-        }
+        UserState::ExpiredToken => (
+            cookie_jar.remove("token"),
+            Response::builder()
+                .status(StatusCode::TEMPORARY_REDIRECT)
+                .header("Location", "/login")
+                .body(Body::from("Session expired, please log in again."))
+                .unwrap(),
+        )
+            .into_response(),
+        UserState::InvalidToken => (cookie_jar.remove("token"), response).into_response(),
         UserState::NoToken => response,
     }
 }
@@ -77,10 +75,16 @@ pub async fn view_hw(
 
     Response::builder()
         .status(StatusCode::OK)
-        .body(Body::from(app_state.templates.render(
-            "basic",
-            &json!({"content": "Hello World! This is the page","user": user_state})
-        )
+        .body(Body::from(
+            app_state
+                .templates
+                .render(
+                    "basic",
+                    &json!({
+                        "content": "Hello World! This is the page",
+                        "user": user_state
+                    }),
+                )
                 .or(Err(WebError::RenderError))?,
         ))
         .or(Err(WebError::RenderError)?)
@@ -269,6 +273,7 @@ pub async fn signup_view(
 #[axum::debug_handler]
 pub async fn signup_handler(
     app_state: State<Arc<AppState>>,
+    cookie_jar: CookieJar,
     form: Form<LoginFormData>,
 ) -> Result<Response<Body>, WebError> {
     // Check if user already exists
@@ -320,12 +325,15 @@ pub async fn signup_handler(
     .expect("Failed to insert user token")
     .token;
 
-    Response::builder()
-        .status(StatusCode::SEE_OTHER)
-        .header("Location", "/")
-        .header("Set-Cookie", format!("token={session_token}"))
-        .body(Body::from("Login Sucessful, redirecting...\n"))
-        .or(Err(WebError::RenderError))
+    Ok((
+        cookie_jar.add(Cookie::new("token", session_token.to_string())),
+        Response::builder()
+            .status(StatusCode::SEE_OTHER)
+            .header("Location", "/")
+            .body(Body::from("Login Sucessful, redirecting...\n"))
+            .or(Err(WebError::RenderError)),
+    )
+        .into_response())
 }
 
 #[axum::debug_handler]
@@ -348,6 +356,7 @@ pub struct LoginFormData {
 #[axum::debug_handler]
 pub async fn login_handler(
     app_state: State<Arc<AppState>>,
+    cookie_jar: CookieJar,
     form: Form<LoginFormData>,
 ) -> Result<Response<Body>, WebError> {
     let db_user = match sqlx::query!("SELECT * FROM Users WHERE name = $1;", &form.username,)
@@ -392,12 +401,15 @@ pub async fn login_handler(
     .expect("Failed to insert user token")
     .token;
 
-    Response::builder()
-        .status(StatusCode::SEE_OTHER)
-        .header("Location", "/")
-        .header("Set-Cookie", format!("token={session_token}"))
-        .body(Body::from("Login Sucessful, redirecting...\n"))
-        .or(Err(WebError::RenderError))
+    Ok((
+        cookie_jar.add(Cookie::new("token", session_token.to_string())),
+        Response::builder()
+            .status(StatusCode::SEE_OTHER)
+            .header("Location", "/")
+            .body(Body::from("Login Sucessful, redirecting...\n"))
+            .or(Err(WebError::RenderError)),
+    )
+        .into_response())
 }
 
 #[axum::debug_handler]
@@ -421,10 +433,13 @@ pub async fn logout_handler(
         .await
         .unwrap();
 
-    Response::builder()
-        .status(StatusCode::SEE_OTHER)
-        .header("Set-Cookie", "token=")
-        .header("Location", "/")
-        .body(Body::from("Logged out, redirecting..."))
-        .or(Err(WebError::RenderError))
+    Ok((
+        cookie_jar.remove("token"),
+        Response::builder()
+            .status(StatusCode::SEE_OTHER)
+            .header("Location", "/")
+            .body(Body::from("Logged out, redirecting..."))
+            .or(Err(WebError::RenderError)),
+    )
+        .into_response())
 }
