@@ -1,10 +1,15 @@
-use axum::extract::State;
+use axum::{
+    body::Body,
+    extract::State,
+    http::{Response, StatusCode},
+    response::IntoResponse,
+};
 use axum_extra::extract::CookieJar;
+use core::fmt;
 use handlebars::{DirectorySourceOptions, Handlebars};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use core::fmt;
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[allow(dead_code)]
@@ -103,6 +108,15 @@ impl fmt::Display for UsernameError {
     }
 }
 
+impl IntoResponse for UsernameError {
+    fn into_response(self) -> axum::response::Response {
+        Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from(format!("{self}")))
+            .unwrap()
+    }
+}
+
 pub fn validate_username(username: &str) -> Result<(), UsernameError> {
     // Verify that username isn't empty or padded
     if username != username.trim() {
@@ -142,7 +156,7 @@ pub async fn get_user_session(
                 Some(trimmed)
             }
         })
-        .and_then(|value| Uuid::from_str(value).ok())
+        .and_then(|value| Uuid::parse_str(value).ok())
     {
         Some(token) => token,
         None => return UserState::NoToken,
