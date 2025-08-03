@@ -13,7 +13,7 @@ use uuid::Uuid;
 use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
 use axum::Form;
 use axum::extract::{Path, Request, State};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Redirect};
 
 use tailbb::{AppState, Category, Post, UserState, get_user_session, validate_username};
 
@@ -87,7 +87,7 @@ pub async fn view_hw(
                 )
                 .or(Err(WebError::RenderError))?,
         ))
-        .or(Err(WebError::RenderError)?)
+        .or(Err(WebError::RenderError))
 }
 
 #[axum::debug_handler]
@@ -129,7 +129,7 @@ pub async fn view_posts(
                 )
                 .or(Err(WebError::RenderError))?,
         ))
-        .or(Err(WebError::RenderError)?)
+        .or(Err(WebError::RenderError))
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -164,7 +164,7 @@ pub async fn view_post(
                 )
                 .or(Err(WebError::RenderError))?,
         ))
-        .or(Err(WebError::RenderError)?)
+        .or(Err(WebError::RenderError))
 }
 
 #[axum::debug_handler]
@@ -205,7 +205,7 @@ pub async fn view_post_form(
                 )
                 .or(Err(WebError::RenderError))?,
         ))
-        .or(Err(WebError::RenderError)?)
+        .or(Err(WebError::RenderError))
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -242,11 +242,7 @@ pub async fn new_post(
     ).fetch_one(&app_state.db_pool).await;
 
     match query {
-        Ok(r) => Response::builder()
-            .status(StatusCode::SEE_OTHER)
-            .header("Location", format!("/posts/{}", r.id))
-            .body(Body::from(""))
-            .or(Err(WebError::RenderError)),
+        Ok(r) => Ok(Redirect::to(format!("/posts/{}", r.id).as_str()).into_response()),
         Err(e) => Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body(Body::from(format!("{e}")))
@@ -327,11 +323,7 @@ pub async fn signup_handler(
 
     Ok((
         cookie_jar.add(Cookie::new("token", session_token.to_string())),
-        Response::builder()
-            .status(StatusCode::SEE_OTHER)
-            .header("Location", "/")
-            .body(Body::from("Login Sucessful, redirecting...\n"))
-            .or(Err(WebError::RenderError)),
+        Redirect::to("/")
     )
         .into_response())
 }
@@ -403,11 +395,7 @@ pub async fn login_handler(
 
     Ok((
         cookie_jar.add(Cookie::new("token", session_token.to_string())),
-        Response::builder()
-            .status(StatusCode::SEE_OTHER)
-            .header("Location", "/")
-            .body(Body::from("Login Sucessful, redirecting...\n"))
-            .or(Err(WebError::RenderError)),
+        Redirect::to("/"),
     )
         .into_response())
 }
@@ -435,11 +423,7 @@ pub async fn logout_handler(
 
     Ok((
         cookie_jar.remove("token"),
-        Response::builder()
-            .status(StatusCode::SEE_OTHER)
-            .header("Location", "/")
-            .body(Body::from("Logged out, redirecting..."))
-            .or(Err(WebError::RenderError)),
+        Redirect::to("/")
     )
         .into_response())
 }
