@@ -90,6 +90,7 @@ pub enum UserState {
     NoToken,
 }
 
+#[derive(PartialEq, Debug)]
 pub enum UsernameError {
     WhitespacePadding,
     InnerWhitespace,
@@ -131,7 +132,7 @@ pub fn validate_username(username: &str) -> Result<(), UsernameError> {
     // Verify that username doesn't have any special characters
     if username
         .chars()
-        .all(|c: char| (!c.is_ascii_alphanumeric() || ".-_".contains(c)))
+        .any(|c: char| !(c.is_ascii_alphanumeric() || ".-_".contains(c)))
     {
         return Err(UsernameError::SpecialCharacters);
     }
@@ -140,6 +141,46 @@ pub fn validate_username(username: &str) -> Result<(), UsernameError> {
         return Err(UsernameError::Empty);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod validate_username_tests {
+    use super::{UsernameError, validate_username};
+
+    #[test]
+    fn valid() {
+        assert!(validate_username("do-ria_3.12").is_ok());
+        assert!(validate_username("Do ria! 312").is_err());
+    }
+
+    #[test]
+    fn inner_whitespace() {
+        assert_eq!(
+            validate_username("doria 312"),
+            Err(UsernameError::InnerWhitespace)
+        );
+    }
+
+    #[test]
+    fn whitespace_padding() {
+        assert_eq!(
+            validate_username("  do-ria_3.12"),
+            Err(UsernameError::WhitespacePadding)
+        );
+        assert_eq!(
+            validate_username("do-ria_3.12  "),
+            Err(UsernameError::WhitespacePadding)
+        );
+    }
+
+    #[test]
+    fn special_characters() {
+        assert_eq!(validate_username("do-ria_3.12"), Ok(()));
+        assert_eq!(
+            validate_username("do-ria+3.12"),
+            Err(UsernameError::SpecialCharacters)
+        );
+    }
 }
 
 pub async fn get_user_session(
