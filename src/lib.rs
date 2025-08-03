@@ -3,6 +3,7 @@ use axum_extra::extract::CookieJar;
 use handlebars::{DirectorySourceOptions, Handlebars};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPool, PgPoolOptions};
+use core::fmt;
 use std::{str::FromStr, sync::Arc};
 use uuid::Uuid;
 
@@ -91,18 +92,14 @@ pub enum UsernameError {
     Empty,
 }
 
-// TODO: This is very very wrong, but I don't know what the correct way of associating descriptions with errors is.
-// I'm guessing I should consider using the thiserror crate for this, but I'm trying out doing this vanilla first
-// to better understand how rust works. Clearly, I have much to learn still.
-impl ToString for UsernameError {
-    fn to_string(&self) -> String {
-        let str = match self {
-            UsernameError::WhitespacePadding => "Username cannot have whitespace padding",
-            UsernameError::InnerWhitespace => "Username cannot have whitespace in it",
-            UsernameError::SpecialCharacters => "Username cannot have special characters",
-            UsernameError::Empty => "Username cannot be empty",
-        };
-        str.to_string()
+impl fmt::Display for UsernameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::WhitespacePadding => write!(f, "Username cannot have whitespace padding"),
+            Self::InnerWhitespace => write!(f, "Username cannot have whitespace in it"),
+            Self::SpecialCharacters => write!(f, "Username cannot have special characters"),
+            Self::Empty => write!(f, "Username cannot be empty"),
+        }
     }
 }
 
@@ -120,12 +117,12 @@ pub fn validate_username(username: &str) -> Result<(), UsernameError> {
     // Verify that username doesn't have any special characters
     if username
         .chars()
-        .all(|c: char| ((c.is_ascii_alphanumeric() == false) || (".-_".contains(c) == true)))
+        .all(|c: char| (!c.is_ascii_alphanumeric() || ".-_".contains(c)))
     {
         return Err(UsernameError::SpecialCharacters);
     }
 
-    if username.trim().len() == 0 {
+    if username.trim().is_empty() {
         return Err(UsernameError::Empty);
     }
     Ok(())

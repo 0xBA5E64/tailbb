@@ -290,17 +290,14 @@ pub async fn signup_handler(
             .or(Err(WebError::RenderError));
     }
 
-    match validate_username(&form.username) {
-        Err(e) => {
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(format!("Error with username: {}", e.to_string()))
-                .or(Err(WebError::RenderError));
-        }
-        Ok(_) => (),
+    if let Err(e) = validate_username(&form.username) {
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(format!("Error with username: {e}"))
+            .or(Err(WebError::RenderError));
     }
 
-    if form.password.trim().len() == 0 {
+    if form.password.trim().is_empty() {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body("Password cannot be empty".to_string())
