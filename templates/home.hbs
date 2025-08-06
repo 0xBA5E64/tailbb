@@ -1,3 +1,8 @@
+{{#* inline "inside"}}
+<h1>
+    Welcome to TailBB{{#with user.ValidSession }}, {{name}}!{{/with}}
+</h1>
+<pre id="lizard-ascii">
            ______
      ___--' ___  \
  \__/_____       .\
@@ -20,3 +25,6 @@
                            \  '  \_____/ ' /
                             \  ' . . . .' / 
                              '._________.'
+</pre>
+{{/inline}}
+{{> base}}

@@ -1,10 +1,17 @@
 {{#* inline "inside"}}
-<h1>Signup</h1>
-<form method="post" action="/signup">
-    <input type="text" name="username" placeholder="Username"><br>
-    <input type="password" name="password" placeholder="Password"><br>
-    <input type="submit" value="Sign Up">
-</form>
-<p>Already have an account? <a href="/login">Login</a></p>
+<div id="login-flex">
+    <div id="login-box">
+        <h1>Signup</h1>
+        {{#with err_msg}}
+        <p class="error">{{this}}</p>
+        {{/with}}
+        <form method="post" action="/signup">
+            <input type="text" name="username" placeholder="Username"><br>
+            <input type="password" name="password" placeholder="Password"><br>
+            <input type="submit" value="Sign Up">
+        </form>
+        <p class="footer">Already have an account? <a href="/login">Login</a></p>
+    </div>
+</div>
 {{/inline}}
 {{> base}}

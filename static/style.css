@@ -1,5 +1,5 @@
-
-html, body {
+html,
+body {
     margin: 0;
     height: 100%;
     width: 100%;
@@ -73,14 +73,14 @@ body {
     height: 100%;
     padding: 2px;
     margin: 0;
-    
+
     font-size: 12px;
     font-family: sans-serif;
-    
+
     border: solid #888 1px;
     box-sizing: border-box;
 }
-    
+
 .category-list p {
     margin: 0px;
     padding: 1px 5px;
@@ -88,9 +88,14 @@ body {
     justify-content: flex-start;
     align-items: center;
 }
-    
-.category-list * { user-select: none; }
-.category-list a { cursor: default; }
+
+.category-list * {
+    user-select: none;
+}
+
+.category-list a {
+    cursor: default;
+}
 
 
 .category .category-name::before {
@@ -109,8 +114,13 @@ body {
     z-index: 2;
 }
 
-.category         .category-name::before { content: "-"; }
-.category.clicked .category-name::before { content: "+"; }
+.category .category-name::before {
+    content: "-";
+}
+
+.category.clicked .category-name::before {
+    content: "+";
+}
 
 
 p.selected {
@@ -122,7 +132,9 @@ p.selected {
     background-clip: padding-box;
 }
 
-.selected * { color: white !important; }
+.selected * {
+    color: white !important;
+}
 
 .category.clicked .post-list {
     display: none;
@@ -136,7 +148,9 @@ p.selected {
     position: relative;
 }
 
-.category-list li::marker { content: ""; }
+.category-list li::marker {
+    content: "";
+}
 
 .post::before {
     content: "";
@@ -166,6 +180,8 @@ p.selected {
     text-decoration: none;
     color: #FFF;
     background: #284;
+    cursor: pointer;
+    ;
 }
 
 iframe#viewer {
@@ -174,4 +190,57 @@ iframe#viewer {
 
 iframe#viewer #header {
     display: hidden;
+}
+
+#login-flex {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#login-box {
+    border: #888 solid 1px;
+    border-radius: 8px;
+    padding: 8px 24px;
+    width: 250px;
+}
+
+#login-box h1 {
+    font-size: 24px;
+}
+
+#login-box .error {
+    color: #F42;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+#login-box input {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 8px 0;
+    padding: 8px 16px;
+}
+
+#login-box .footer {
+    color: gray;
+    font-size: 12px;
+    text-align: center;
+}
+
+#login-box .footer a {
+    text-decoration: none;
+    font-weight: bold;
+}
+
+#lizard-ascii {
+    display: inline-block;
+    font-weight: bold;
+    color: #888;
+
+    position: absolute;
+    bottom: 10%;
+    right: 10%;
 }

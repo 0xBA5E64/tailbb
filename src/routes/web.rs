@@ -79,9 +79,8 @@ pub async fn view_hw(
             app_state
                 .templates
                 .render(
-                    "basic",
+                    "home",
                     &json!({
-                        "content": "Hello World! This is the page",
                         "user": user_state
                     }),
                 )
@@ -270,6 +269,7 @@ pub async fn signup_view(
 pub async fn signup_handler(
     app_state: State<Arc<AppState>>,
     cookie_jar: CookieJar,
+    Extension(user_state): Extension<UserState>,
     form: Form<LoginFormData>,
 ) -> Result<Response<Body>, WebError> {
     // Check if user already exists
@@ -281,18 +281,45 @@ pub async fn signup_handler(
     {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from("User already exists"))
+            .body(Body::from(
+                app_state
+                    .templates
+                    .render(
+                        "signup",
+                        &json!({"user": user_state, "err_msg": "User already exists"}),
+                    )
+                    .or(Err(WebError::RenderError))?,
+            ))
             .or(Err(WebError::RenderError));
     }
 
     if let Err(e) = validate_username(&form.username) {
-        return Ok(e.into_response());
+        return Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::from(
+                app_state
+                    .templates
+                    .render(
+                        "signup",
+                        &json!({"user": user_state, "err_msg": format!("{e}")}),
+                    )
+                    .or(Err(WebError::RenderError))?,
+            ))
+            .or(Err(WebError::RenderError));
     }
 
     if form.password.trim().is_empty() {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from("Password cannot be empty"))
+            .body(Body::from(
+                app_state
+                    .templates
+                    .render(
+                        "signup",
+                        &json!({"user": user_state, "err_msg": "Password cannot be empty"}),
+                    )
+                    .or(Err(WebError::RenderError))?,
+            ))
             .or(Err(WebError::RenderError));
     }
 
@@ -323,7 +350,7 @@ pub async fn signup_handler(
 
     Ok((
         cookie_jar.add(Cookie::new("token", session_token.to_string())),
-        Redirect::to("/")
+        Redirect::to("/"),
     )
         .into_response())
 }
@@ -348,6 +375,7 @@ pub struct LoginFormData {
 #[axum::debug_handler]
 pub async fn login_handler(
     app_state: State<Arc<AppState>>,
+    Extension(user_state): Extension<UserState>,
     cookie_jar: CookieJar,
     form: Form<LoginFormData>,
 ) -> Result<Response<Body>, WebError> {
@@ -360,9 +388,17 @@ pub async fn login_handler(
         None => {
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
-                .body(Body::from("User not found"))
+                .body(Body::from(
+                    app_state
+                        .templates
+                        .render(
+                            "login",
+                            &json!({"user": user_state, "err_msg": "User not found"}), // Todo: Maybe don't announce this publicly
+                        )
+                        .or(Err(WebError::RenderError))?,
+                ))
                 .or(Err(WebError::RenderError));
-        } // Todo: Maybe don't announce this publicly
+        }
     };
 
     let a2 = Argon2::default();
@@ -380,7 +416,15 @@ pub async fn login_handler(
     if db_hash != rq_hash {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
-            .body(Body::from("Invalid Password")) // Todo: Maybe don't announce this publicly
+            .body(Body::from(
+                app_state
+                    .templates
+                    .render(
+                        "login",
+                        &json!({"user": user_state, "err_msg": "Invalid Password"}), // Todo: Maybe don't announce this publicly
+                    )
+                    .or(Err(WebError::RenderError))?,
+            ))
             .or(Err(WebError::RenderError));
     }
 
@@ -421,9 +465,5 @@ pub async fn logout_handler(
         .await
         .unwrap();
 
-    Ok((
-        cookie_jar.remove("token"),
-        Redirect::to("/")
-    )
-        .into_response())
+    Ok((cookie_jar.remove("token"), Redirect::to("/")).into_response())
 }
