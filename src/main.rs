@@ -34,5 +34,13 @@ async fn main() {
         // STATE
         .with_state(app_state);
 
-    axum::serve(listener, app).await.unwrap();
+    let server = axum::serve(listener, app);
+
+    println!(
+        "Serving on: http://{ip}:{port}",
+        ip = server.local_addr().unwrap().ip(),
+        port = server.local_addr().unwrap().port()
+    );
+
+    server.await.unwrap();
 }
