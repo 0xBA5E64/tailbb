@@ -1,47 +1,49 @@
 {{#* inline "inside"}}
 <div id="view-flex">
-<ul class="category-list">
-{{#each categories}}
-    <li class="category">
-    <p class="category-name">{{name}}</p>
-    <ul class="post-list">
-        {{#each posts}}
-        <li class="post"><p><a onclick="return false" href="posts/{{id}}">{{title}}</a></p></li>
+    <ul class="category-list">
+        {{#each categories}}
+        <li class="category">
+            <p class="category-name">{{name}}</p>
+            <ul class="post-list">
+                {{#each posts}}
+                <li class="post">
+                    <p><a onclick="return false" href="posts/{{id}}">{{title}}</a></p>
+                </li>
+                {{/each}}
+            </ul>
+        </li>
         {{/each}}
+        {{#if user.ValidSession}}
+        <a id="new-post" href="/posts/new">New Post</a>
+        {{/if}}
     </ul>
-    </li>
-{{/each}}
-{{#if user.ValidSession}}
-<a id="new-post" href="/posts/new">New Post</a>
-{{/if}}
-</ul>
 
-<iframe id="viewer">
-Posts will be seen here
-</iframe>
+    <iframe id="viewer" src="/static/post-viewer-placeholder.html">
+        Posts will be seen here
+    </iframe>
 </div>
 <script>
 
-document.querySelectorAll(".category-list p").forEach((e) => {
-    e.addEventListener("click", () => {
-        document.querySelectorAll(".category-list p").forEach((e) => {
-            e.classList.remove("selected")
+    document.querySelectorAll(".category-list p").forEach((e) => {
+        e.addEventListener("click", () => {
+            document.querySelectorAll(".category-list p").forEach((e) => {
+                e.classList.remove("selected")
+            })
+            e.classList.add("selected")
         })
-        e.classList.add("selected")
-    } )
-})
+    })
 
-document.querySelectorAll(".category-name").forEach((e) => {
-    e.addEventListener("dblclick", () => {
-        e.parentNode.classList.toggle("clicked")
-    } )
-})
+    document.querySelectorAll(".category-name").forEach((e) => {
+        e.addEventListener("dblclick", () => {
+            e.parentNode.classList.toggle("clicked")
+        })
+    })
 
-document.querySelectorAll("a").forEach((e) => {
-    e.addEventListener("dblclick", () => {
-        document.querySelector("#viewer").src = e.href + "?noheader=true"
-    } )
-})
+    document.querySelectorAll("a").forEach((e) => {
+        e.addEventListener("dblclick", () => {
+            document.querySelector("#viewer").src = e.href + "?noheader=true"
+        })
+    })
 
 </script>
 {{/inline}}
