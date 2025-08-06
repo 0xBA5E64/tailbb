@@ -1,23 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TailBB</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     {{#unless page_opts.noheader }}
     <div id="header">
-    <h1>TailBB</h1>
+        <h1>TailBB</h1>
 
-    <div id="user">     
-    {{#with user.ValidSession}}
-        Logged in as: <b>{{name}}</b> (<a href="/logout">Log out</a>)
-    {{else}}
-        Not logged in (<a href="/login">Login</a>)
-    {{/with}}
-    </div>
+        {{#with build}}
+        <div id="build-info">
+            <p>{{head_ref}}</p>
+            <span>/</span>
+            <a class="commit" target="_blank" href="https://github.com/0xBA5E64/tailbb/commit/{{commit}}">{{commit}}</a>
+            {{#with dirty}}<span class="dirty">Dirty!</span>{{/with}}
+        </div>
+        {{/with}}
+
+        <div id="user">
+            {{#with user.ValidSession}}
+            Logged in as: <b>{{name}}</b> (<a href="/logout">Log out</a>)
+            {{else}}
+            Not logged in (<a href="/login">Login</a>)
+            {{/with}}
+        </div>
         <div id="navbar">
             <a href="/">Home</a>
             <a href="/posts">Posts</a>
@@ -26,8 +37,9 @@
     {{/unless}}
 
     <div id="content">
-    {{> inside}}
+        {{> inside}}
     </div>
 
 </body>
+
 </html>

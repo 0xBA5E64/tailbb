@@ -49,6 +49,39 @@ body {
     align-items: center;
 }
 
+#header #build-info {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-family: monospace;
+    background: #222;
+    border: solid 1px #666;
+    color: #EEE;
+    border-radius: 4px;
+}
+
+#header #build-info * {
+    display: inline-block;
+    text-decoration: none;
+    margin: 0;
+    border-radius: 4px;
+}
+
+
+#header #build-info .commit {
+    font-weight: bold;
+    color: inherit;
+}
+
+#header #build-info .dirty {
+    background: #D40;
+    padding: 0 8px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
 #header #user {
     position: absolute;
     right: 0px;

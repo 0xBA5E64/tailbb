@@ -81,7 +81,8 @@ pub async fn view_hw(
                 .render(
                     "home",
                     &json!({
-                        "user": user_state
+                        "user": user_state,
+                        "build": app_state.build_info
                     }),
                 )
                 .or(Err(WebError::RenderError))?,
@@ -124,7 +125,11 @@ pub async fn view_posts(
                 .templates
                 .render(
                     "post-list",
-                    &json!({"user": user_state, "categories": categories}),
+                    &json!({
+                        "user": user_state,
+                        "categories": categories,
+                        "build": app_state.build_info
+                    }),
                 )
                 .or(Err(WebError::RenderError))?,
         ))
@@ -159,7 +164,12 @@ pub async fn view_post(
                 .templates
                 .render(
                     "post-view",
-                    &json!({"user": user_state,"post": post, "page_opts": page_opts}),
+                    &json!({
+                        "user": user_state,
+                        "post": post,
+                        "page_opts": page_opts,
+                        "build": app_state.build_info
+                    }),
                 )
                 .or(Err(WebError::RenderError))?,
         ))
@@ -200,7 +210,11 @@ pub async fn view_post_form(
                 .templates
                 .render(
                     "post-form",
-                    &json!({"user": user_state, "categories": categories}),
+                    &json!({
+                        "user": user_state,
+                        "categories": categories,
+                        "build": app_state.build_info
+                    }),
                 )
                 .or(Err(WebError::RenderError))?,
         ))
@@ -259,7 +273,13 @@ pub async fn signup_view(
         .body(Body::from(
             app_state
                 .templates
-                .render("signup", &json!({"user": user_state}))
+                .render(
+                    "signup",
+                    &json!({
+                        "user": user_state,
+                        "build": app_state.build_info
+                    }),
+                )
                 .or(Err(WebError::RenderError))?,
         ))
         .or(Err(WebError::RenderError))
@@ -286,7 +306,11 @@ pub async fn signup_handler(
                     .templates
                     .render(
                         "signup",
-                        &json!({"user": user_state, "err_msg": "User already exists"}),
+                        &json!({
+                            "user": user_state,
+                            "err_msg": "User already exists",
+                            "build": app_state.build_info
+                        }),
                     )
                     .or(Err(WebError::RenderError))?,
             ))
@@ -301,7 +325,11 @@ pub async fn signup_handler(
                     .templates
                     .render(
                         "signup",
-                        &json!({"user": user_state, "err_msg": format!("{e}")}),
+                        &json!({
+                            "user": user_state,
+                            "err_msg": format!("{e}"),
+                            "build": app_state.build_info
+                        }),
                     )
                     .or(Err(WebError::RenderError))?,
             ))
@@ -316,7 +344,11 @@ pub async fn signup_handler(
                     .templates
                     .render(
                         "signup",
-                        &json!({"user": user_state, "err_msg": "Password cannot be empty"}),
+                        &json!({
+                            "user": user_state,
+                            "err_msg": "Password cannot be empty",
+                            "build": app_state.build_info
+                        }),
                     )
                     .or(Err(WebError::RenderError))?,
             ))
@@ -356,11 +388,23 @@ pub async fn signup_handler(
 }
 
 #[axum::debug_handler]
-pub async fn login_view(app_state: State<Arc<AppState>>) -> Result<Response<Body>, WebError> {
+pub async fn login_view(
+    app_state: State<Arc<AppState>>,
+    Extension(user_state): Extension<UserState>,
+) -> Result<Response<Body>, WebError> {
     Response::builder()
         .status(StatusCode::OK)
         .body(Body::from(
-            app_state.templates.render("login", &json!({})).unwrap(),
+            app_state
+                .templates
+                .render(
+                    "login",
+                    &json!({
+                        "user": user_state,
+                        "build": app_state.build_info
+                    }),
+                )
+                .unwrap(),
         ))
         .or(Err(WebError::RenderError))
 }
@@ -393,7 +437,11 @@ pub async fn login_handler(
                         .templates
                         .render(
                             "login",
-                            &json!({"user": user_state, "err_msg": "User not found"}), // Todo: Maybe don't announce this publicly
+                            &json!({
+                                "user": user_state,
+                                "err_msg": "User not found", // Todo: Maybe don't announce this publicly
+                                "build": app_state.build_info
+                            }),
                         )
                         .or(Err(WebError::RenderError))?,
                 ))
@@ -421,7 +469,11 @@ pub async fn login_handler(
                     .templates
                     .render(
                         "login",
-                        &json!({"user": user_state, "err_msg": "Invalid Password"}), // Todo: Maybe don't announce this publicly
+                        &json!({
+                            "user": user_state,
+                            "err_msg": "Invalid Password",
+                            "build": app_state.build_info
+                        }), // Todo: Maybe don't announce this publicly
                     )
                     .or(Err(WebError::RenderError))?,
             ))

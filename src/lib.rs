@@ -12,12 +12,49 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::sync::Arc;
 use uuid::Uuid;
 
+pub mod built_info {
+    // The file has been placed there by the build script.
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
+#[derive(Clone, Serialize)]
+pub struct BuildInfo {
+    pub commit: String,
+    pub head_ref: String,
+    pub dirty: bool,
+}
+impl BuildInfo {
+    pub async fn new() -> Option<Self> {
+        let commit = match built_info::GIT_COMMIT_HASH {
+            Some(e) => String::from(e),
+            None => return None,
+        };
+
+        let head_ref = match built_info::GIT_HEAD_REF {
+            Some(e) => String::from(e),
+            None => return None,
+        };
+
+        let dirty = match built_info::GIT_DIRTY {
+            Some(e) => bool::from(e),
+            None => return None,
+        };
+
+        Some(Self {
+            commit,
+            head_ref,
+            dirty,
+        })
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct AppState {
     pub host: String,
     pub db_url: String,
     pub db_pool: PgPool,
+    pub build_info: Option<BuildInfo>,
     pub templates: Handlebars<'static>,
     pub session_timeout: i64,
 }
@@ -32,6 +69,8 @@ impl AppState {
             .connect(db_url.as_str())
             .await
             .expect("DB connection failed");
+
+        let build_info = BuildInfo::new();
 
         let mut templates = Handlebars::new();
         templates.set_dev_mode(true);
@@ -51,6 +90,7 @@ impl AppState {
             host,
             db_url,
             db_pool,
+            build_info: build_info.await,
             templates,
             session_timeout,
         }
