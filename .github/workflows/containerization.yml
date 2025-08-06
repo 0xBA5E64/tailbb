@@ -1,9 +1,16 @@
+# Heavily referenced from github starter-workflows template:
+# https://github.com/actions/starter-workflows/blob/61d42c9d0c8d4a398799a581eb6ce48ca742a2bc/ci/docker-publish.yml
+
 name: Build container image
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-container-image:
@@ -14,17 +21,27 @@ jobs:
 
     steps:
       - name: Login to GHCR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate Docker Metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Build container image
-        run: docker build . -t ghcr.io/0xba5e64/tailbb:${{ github.sha }}
-      
-      - name: Push container to GHCR
-        run: docker push ghcr.io/0xba5e64/tailbb:${{ github.sha }}
+      - name: Build & Push docker image
+        uses: docker/build-push-action@v6
+        with:
+          push: ${{ github.event_name != 'pull_request' }} # Don't push on pulls to avoid griefing.
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
