@@ -67,4 +67,4 @@ jobs:
           use-cache: 'true'
       - name: Update deployment over SSH
         run: |
-          ssh -t newt@100.125.93.83 "cd ~/tailbb && docker compose up -d --pull=always"
+          ssh -o StrictHostKeyChecking=no newt@100.125.93.83 "cd ~/tailbb && docker compose up -d --pull=always"
