@@ -61,7 +61,7 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new() -> Self {
-        let host: String = std::env::var("HOST").expect("No HOST Specified");
+        let host: String = std::env::var("HOST").unwrap_or("0.0.0.0:3000".to_string());
 
         let db_url: String = std::env::var("DATABASE_URL").expect("No DATABASE_URL Specified");
 
