@@ -1,0 +1,8 @@
+FROM alpine
+COPY ./tailbb.txz /app/
+WORKDIR /app
+RUN tar -xJf tailbb.txz
+RUN rm tailbb.txz
+EXPOSE 3000/tcp
+EXPOSE 3000/udp
+CMD ["./tailbb"]

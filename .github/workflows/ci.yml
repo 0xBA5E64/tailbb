@@ -13,9 +13,39 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push-container-image:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+      
+      - name: Prepare Rust Toolchain
+        run: rustup toolchain install stable --profile minimal
+      
+      - name: Prepare Rust Linux-MUSL Target
+        run: rustup target add x86_64-unknown-linux-musl 
+
+      - name: Prepare Rust Cache
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Build Rust Project
+        run: cargo build -r --target=x86_64-unknown-linux-musl
+
+      - name: Collect Build
+        run: tar cJf tailbb.txz readme.txt templates static -C target/release tailbb
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: tailbb.txz
+          compression-level: 0
+
+  containerize-and-push:
     name: Build & push container image
     runs-on: ubuntu-latest
+    needs: build
     permissions:
       packages: write
 
@@ -47,16 +77,15 @@ jobs:
         id: docker-build-push
         uses: docker/build-push-action@v6
         with:
+          file: Dockerfile-bin
           push: ${{ github.event_name != 'pull_request' }} # Don't push on pulls to avoid griefing.
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
   
   deploy-to-hetzling-via-ts:
     name: Deploy to `hetzling` over Tailscale
     runs-on: ubuntu-latest
-    needs: build-and-push-container-image
+    needs: containerize-and-push
     steps:
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
