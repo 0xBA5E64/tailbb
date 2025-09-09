@@ -34,7 +34,7 @@ jobs:
         run: cargo build -r --target=x86_64-unknown-linux-musl
 
       - name: Collect Build
-        run: tar cJf tailbb.txz readme.txt templates static -C target/release tailbb
+        run: tar cJf tailbb.txz readme.txt templates static -C target/x86_64-unknown-linux-musl/release tailbb
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
