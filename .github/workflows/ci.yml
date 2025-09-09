@@ -39,6 +39,7 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
+          name: tailbb-musl-build
           path: tailbb.txz
           compression-level: 0
 
@@ -72,6 +73,11 @@ jobs:
             type=ref,event=branch
             type=ref,event=tag
             type=ref,event=pr
+      
+      - name: Pull build artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: tailbb-musl-build
 
       - name: Build & Push docker image
         id: docker-build-push
