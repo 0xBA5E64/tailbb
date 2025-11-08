@@ -60,6 +60,56 @@ impl IntoResponse for WebError {
     }
 }
 
+pub struct WebTemplateResponse<'a> {
+    status: StatusCode,
+    template: &'a str,
+    app_state: &'a AppState,
+    context: serde_json::Value,
+}
+
+impl<'a> WebTemplateResponse<'a> {
+    pub fn new(template: &'static str, app_state: &'a AppState, user_state: &UserState) -> Self {
+        Self {
+            status: StatusCode::OK,
+            template,
+            app_state,
+            context: json!({
+                "user": user_state,
+                "build": app_state.build_info
+            }),
+        }
+    }
+
+    pub fn with_status(mut self, status: StatusCode) -> Self {
+        self.status = status;
+        self
+    }
+
+    pub fn with<T: serde::Serialize>(mut self, key: &str, value: T) -> Self {
+        if let Some(obj) = self.context.as_object_mut() {
+            obj.insert(key.to_string(), serde_json::to_value(value).unwrap());
+        }
+        self
+    }
+
+    pub fn with_error(self, message: &str) -> Self {
+        self.with("err_msg", message)
+    }
+
+    pub fn render(self) -> Result<Response<Body>, WebError> {
+        let rendered = self
+            .app_state
+            .templates
+            .render(self.template, &self.context)
+            .map_err(|_| WebError::RenderError)?;
+
+        Response::builder()
+            .status(self.status)
+            .body(Body::from(rendered))
+            .map_err(|_| WebError::RenderError)
+    }
+}
+
 #[axum::debug_handler]
 pub async fn view_hw(
     app_state: State<Arc<AppState>>,
@@ -67,21 +117,7 @@ pub async fn view_hw(
 ) -> Result<Response<Body>, WebError> {
     dbg!(serde_json::to_string(&user_state).unwrap());
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(
-            app_state
-                .templates
-                .render(
-                    "home",
-                    &json!({
-                        "user": user_state,
-                        "build": app_state.build_info
-                    }),
-                )
-                .or(Err(WebError::RenderError))?,
-        ))
-        .or(Err(WebError::RenderError))
+    WebTemplateResponse::new("home", &app_state, &user_state).render()
 }
 
 #[axum::debug_handler]
@@ -112,22 +148,9 @@ pub async fn view_posts(
                 .or(Err(WebError::DatabaseError))?)
     }
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(
-            app_state
-                .templates
-                .render(
-                    "post-list",
-                    &json!({
-                        "user": user_state,
-                        "categories": categories,
-                        "build": app_state.build_info
-                    }),
-                )
-                .or(Err(WebError::RenderError))?,
-        ))
-        .or(Err(WebError::RenderError))
+    WebTemplateResponse::new("post-list", &app_state, &user_state)
+        .with("categories", categories)
+        .render()
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -147,27 +170,20 @@ pub async fn view_post(
         "SELECT *, uuid_extract_timestamp(id) as \"created_on!\" FROM Posts WHERE id = $1;",
         post_id
     )
-    .fetch_one(&app_state.db_pool)
+    .fetch_optional(&app_state.db_pool)
     .await
     .expect("Failed to fetch post");
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(
-            app_state
-                .templates
-                .render(
-                    "post-view",
-                    &json!({
-                        "user": user_state,
-                        "post": post,
-                        "page_opts": page_opts,
-                        "build": app_state.build_info
-                    }),
-                )
-                .or(Err(WebError::RenderError))?,
-        ))
-        .or(Err(WebError::RenderError))
+    match post {
+        Some(post) => WebTemplateResponse::new("post-view", &app_state, &user_state)
+            .with("post", post)
+            .with("page_opts", page_opts)
+            .render(),
+        None => WebTemplateResponse::new("error", &app_state, &user_state)
+            .with("err_msg", "Post not found")
+            .with("page_opts", page_opts)
+            .render(),
+    }
 }
 
 #[axum::debug_handler]
@@ -197,22 +213,9 @@ pub async fn view_post_form(
         })
         .collect();
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(
-            app_state
-                .templates
-                .render(
-                    "post-form",
-                    &json!({
-                        "user": user_state,
-                        "categories": categories,
-                        "build": app_state.build_info
-                    }),
-                )
-                .or(Err(WebError::RenderError))?,
-        ))
-        .or(Err(WebError::RenderError))
+    WebTemplateResponse::new("post-form", &app_state, &user_state)
+        .with("categories", categories)
+        .render()
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -250,10 +253,9 @@ pub async fn new_post(
 
     match query {
         Ok(r) => Ok(Redirect::to(format!("/posts/{}", r.id).as_str()).into_response()),
-        Err(e) => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from(format!("{e}")))
-            .or(Err(WebError::RenderError)),
+        Err(e) => WebTemplateResponse::new("error", &app_state, &user_state)
+            .with_error(e.to_string().as_str())
+            .render(),
     }
 }
 
@@ -262,21 +264,7 @@ pub async fn signup_view(
     app_state: State<Arc<AppState>>,
     Extension(user_state): Extension<UserState>,
 ) -> Result<Response<Body>, WebError> {
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(
-            app_state
-                .templates
-                .render(
-                    "signup",
-                    &json!({
-                        "user": user_state,
-                        "build": app_state.build_info
-                    }),
-                )
-                .or(Err(WebError::RenderError))?,
-        ))
-        .or(Err(WebError::RenderError))
+    WebTemplateResponse::new("signup", &app_state, &user_state).render()
 }
 
 #[axum::debug_handler]
@@ -293,60 +281,24 @@ pub async fn signup_handler(
         .unwrap()
         .is_some()
     {
-        return Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from(
-                app_state
-                    .templates
-                    .render(
-                        "signup",
-                        &json!({
-                            "user": user_state,
-                            "err_msg": "User already exists",
-                            "build": app_state.build_info
-                        }),
-                    )
-                    .or(Err(WebError::RenderError))?,
-            ))
-            .or(Err(WebError::RenderError));
+        return WebTemplateResponse::new("signup", &app_state, &user_state)
+            .with_status(StatusCode::BAD_REQUEST)
+            .with_error("User already exists")
+            .render();
     }
 
     if let Err(e) = validate_username(&form.username) {
-        return Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from(
-                app_state
-                    .templates
-                    .render(
-                        "signup",
-                        &json!({
-                            "user": user_state,
-                            "err_msg": format!("{e}"),
-                            "build": app_state.build_info
-                        }),
-                    )
-                    .or(Err(WebError::RenderError))?,
-            ))
-            .or(Err(WebError::RenderError));
+        return WebTemplateResponse::new("signup", &app_state, &user_state)
+            .with_status(StatusCode::BAD_REQUEST)
+            .with_error(&format!("{e}"))
+            .render();
     }
 
     if form.password.trim().is_empty() {
-        return Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::from(
-                app_state
-                    .templates
-                    .render(
-                        "signup",
-                        &json!({
-                            "user": user_state,
-                            "err_msg": "Password cannot be empty",
-                            "build": app_state.build_info
-                        }),
-                    )
-                    .or(Err(WebError::RenderError))?,
-            ))
-            .or(Err(WebError::RenderError));
+        return WebTemplateResponse::new("signup", &app_state, &user_state)
+            .with_status(StatusCode::BAD_REQUEST)
+            .with_error("Password cannot be empty")
+            .render();
     }
 
     let a2 = Argon2::default();
@@ -386,21 +338,7 @@ pub async fn login_view(
     app_state: State<Arc<AppState>>,
     Extension(user_state): Extension<UserState>,
 ) -> Result<Response<Body>, WebError> {
-    Response::builder()
-        .status(StatusCode::OK)
-        .body(Body::from(
-            app_state
-                .templates
-                .render(
-                    "login",
-                    &json!({
-                        "user": user_state,
-                        "build": app_state.build_info
-                    }),
-                )
-                .unwrap(),
-        ))
-        .or(Err(WebError::RenderError))
+    WebTemplateResponse::new("login", &app_state, &user_state).render()
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -424,22 +362,10 @@ pub async fn login_handler(
     {
         Some(e) => e,
         None => {
-            return Response::builder()
-                .status(StatusCode::UNAUTHORIZED)
-                .body(Body::from(
-                    app_state
-                        .templates
-                        .render(
-                            "login",
-                            &json!({
-                                "user": user_state,
-                                "err_msg": "User not found", // Todo: Maybe don't announce this publicly
-                                "build": app_state.build_info
-                            }),
-                        )
-                        .or(Err(WebError::RenderError))?,
-                ))
-                .or(Err(WebError::RenderError));
+            return WebTemplateResponse::new("login", &app_state, &user_state)
+                .with_status(StatusCode::UNAUTHORIZED)
+                .with_error("User not found") // Todo: Maybe don't announce this publicly
+                .render();
         }
     };
 
@@ -456,22 +382,10 @@ pub async fn login_handler(
         .unwrap();
 
     if db_hash != rq_hash {
-        return Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Body::from(
-                app_state
-                    .templates
-                    .render(
-                        "login",
-                        &json!({
-                            "user": user_state,
-                            "err_msg": "Invalid Password",
-                            "build": app_state.build_info
-                        }), // Todo: Maybe don't announce this publicly
-                    )
-                    .or(Err(WebError::RenderError))?,
-            ))
-            .or(Err(WebError::RenderError));
+        return WebTemplateResponse::new("login", &app_state, &user_state)
+            .with_status(StatusCode::UNAUTHORIZED)
+            .with_error("Invalid Password") // Todo: Maybe don't announce this publicly
+            .render();
     }
 
     let session_token = sqlx::query!(
