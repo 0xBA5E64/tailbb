@@ -31,15 +31,9 @@ pub async fn auth_middleware(
 
     match user_state {
         UserState::ValidSession(_) => response,
-        UserState::ExpiredToken => (
-            cookie_jar.remove("token"),
-            Response::builder()
-                .status(StatusCode::TEMPORARY_REDIRECT)
-                .header("Location", "/login")
-                .body(Body::from("Session expired, please log in again."))
-                .unwrap(),
-        )
-            .into_response(),
+        UserState::ExpiredToken => {
+            (cookie_jar.remove("token"), Redirect::temporary("/login")).into_response()
+        }
         UserState::InvalidToken => (cookie_jar.remove("token"), response).into_response(),
         UserState::NoToken => response,
     }
@@ -503,13 +497,7 @@ pub async fn logout_handler(
 ) -> Result<Response<Body>, WebError> {
     let token: Uuid = match cookie_jar.get("token") {
         Some(c) => Uuid::from_str(c.value_trimmed()).unwrap(),
-        None => {
-            return Response::builder()
-                .status(StatusCode::TEMPORARY_REDIRECT)
-                .header("Location", "/")
-                .body(Body::from(""))
-                .or(Err(WebError::RenderError));
-        }
+        None => return Ok(Redirect::temporary("/").into_response()),
     };
 
     let _query = sqlx::query!("DELETE FROM UserTokens WHERE token = $1", token)
