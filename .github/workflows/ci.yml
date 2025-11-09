@@ -95,18 +95,16 @@ jobs:
           tags: ${{ steps.docker-meta.outputs.tags }}
           labels: ${{ steps.docker-meta.outputs.labels }}
   
-  deploy-to-hetzling-via-ts:
+  deploy-to-hetzling:
     name: Deploy to `hetzling` over Tailscale
     runs-on: ubuntu-latest
     needs: containerize-and-push
     steps:
-      - name: Setup Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-          use-cache: 'true'
       - name: Update deployment over SSH
-        run: |
-          ssh -o StrictHostKeyChecking=no newt@100.125.93.83 "cd ~/tailbb && docker compose up -d --pull=always"
+        uses: appleboy/ssh-action@v1.2.3
+        with:
+          host: wyrm.host
+          username: newt
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          fingerprint: ${{ secrets.DEPLOY_SSH_FGP }}
+          script: "cd ~/tailbb && docker compose up -d --pull=always"
